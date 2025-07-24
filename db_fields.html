@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>DB 전체 필드/파라미터/트래킹/통계/비즈니스 로직 정리</title>
+  <style>
+    body { font-family: 'Malgun Gothic', Arial, sans-serif; background: #f9f9f9; color: #222; }
+    h1, h2 { color: #1a237e; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 2em; }
+    th, td { border: 1px solid #bbb; padding: 8px 12px; }
+    th { background: #e3f2fd; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .logic { background: #fffde7; border-left: 4px solid #ffd600; padding: 10px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>DB 전체 필드/파라미터/트래킹/통계/비즈니스 로직 정리</h1>
+
+  <h2>1. 고객 및 기본 정보</h2>
+  <table>
+    <tr><th>필드명</th><th>설명</th></tr>
+    <tr><td>id</td><td>고객 고유 ID</td></tr>
+    <tr><td>line_user_id</td><td>LINE 사용자 ID</td></tr>
+    <tr><td>line_user_name</td><td>LINE 사용자 이름</td></tr>
+    <tr><td>customer_team_name</td><td>고객 팀명</td></tr>
+    <tr><td>sport_type</td><td>스포츠 타입(야구/축구/농구 등)</td></tr>
+    <tr><td>brand</td><td>브랜드(ILB_MAX, MAX2MAX 등)</td></tr>
+    <tr><td>friend_add_date</td><td>친구 추가 일시</td></tr>
+    <tr><td>first_chat_date</td><td>첫 대화 일시</td></tr>
+    <tr><td>customer_type</td><td>고객 유형(신규/기존/드랍 등)</td></tr>
+    <tr><td>last_message_date</td><td>마지막 메시지 일시</td></tr>
+    <tr><td>friend_add_status</td><td>친구 상태(친구/차단)</td></tr>
+    <tr><td>chat_status</td><td>대화 상태(읽씹/응답/무대답/대화중)</td></tr>
+    <tr><td>date_to_block</td><td>차단 일시</td></tr>
+    <tr><td>notes</td><td>비고/메모</td></tr>
+  </table>
+
+  <h3>1-1. 고객 및 기본 정보 DB 모델 상세</h3>
+  <table>
+    <tr><th>파라미터명</th><th>입력 타입/형식</th><th>예시</th><th>설명</th></tr>
+    <tr><td>id</td><td>string</td><td>"cus_123..."</td><td>고객 PK, 단일 값</td></tr>
+    <tr><td>line_user_id</td><td>string</td><td>"U1234567890"</td><td>LINE 사용자 ID, 단일 값</td></tr>
+    <tr><td>line_user_name</td><td>string</td><td>"홍길동"</td><td>고객 이름, 부분검색 가능</td></tr>
+    <tr><td>customer_team_name</td><td>string | string[]</td><td>"삼성라이온즈" 또는 ["삼성라이온즈", "LG트윈스"]</td><td>팀명, 다중 검색 가능</td></tr>
+    <tr><td>sport_type</td><td>enum | array</td><td>"BASEBALL" 또는 ["BASEBALL", "SOCCER"]</td><td>스포츠 타입, 다중 필터 가능</td></tr>
+    <tr><td>brand</td><td>enum | array</td><td>"ILB_MAX" 또는 ["ILB_MAX", "MAX2MAX"]</td><td>브랜드, 다중 필터 가능</td></tr>
+    <tr><td>friend_add_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>기간 검색</td></tr>
+    <tr><td>first_chat_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>첫 대화 일시, 기간 검색</td></tr>
+    <tr><td>customer_type</td><td>enum | array</td><td>"NEW" 또는 ["NEW", "EXISTING"]</td><td>고객 유형</td></tr>
+    <tr><td>last_message_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>최근 활동 고객 조회</td></tr>
+    <tr><td>friend_add_status</td><td>enum | array</td><td>"FRIEND" 또는 ["FRIEND", "BLOCKED"]</td><td>친구 상태</td></tr>
+    <tr><td>chat_status</td><td>enum | array</td><td>"CHATTING" 또는 ["CHATTING", "NO_RESPONSE"]</td><td>대화 상태</td></tr>
+    <tr><td>date_to_block</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>차단 일시, 기간 검색</td></tr>
+    <tr><td>notes</td><td>string</td><td>"VIP 고객"</td><td>비고/메모, 부분검색 가능</td></tr>
+  </table>
+
+  <h2>2. 고객 행동/여정/트래킹/통계</h2>
+  <table>
+    <tr><th>필드명</th><th>설명</th></tr>
+    <tr><td>customer_action_time</td><td>고객 행동 발생 시각</td></tr>
+    <tr><td>customer_action_type</td><td>행동 타입(메시지/클릭/팔로우 등)</td></tr>
+    <tr><td>customer_journey_stage</td><td>고객 여정 단계(친구추가/시안요청/결제 등)</td></tr>
+    <tr><td>progress_status</td><td>진행 상태(진행중/완성/드랍)</td></tr>
+    <tr><td>tracking_count</td><td>트래킹 카운트(예: 주문/상담 횟수)</td></tr>
+    <tr><td>first_design_sent_date</td><td>첫 디자인 발송 일시</td></tr>
+    <tr><td>1st_revision_count</td><td>1차 수정 횟수</td></tr>
+    <tr><td>2nd_revision_count</td><td>2차 수정 횟수</td></tr>
+    <tr><td>3rd_revision_count</td><td>3차 수정 횟수</td></tr>
+    <tr><td>design_confirm_date</td><td>디자인 확정 일시</td></tr>
+    <tr><td>time_to_send_first_design</td><td>첫 디자인 발송까지 소요 시간</td></tr>
+    <tr><td>time_to_complete_ordersheet_after_design</td><td>디자인 확정 후 오더시트 작성까지 소요 시간</td></tr>
+    <tr><td>time_to_payment_after_ordersheet</td><td>오더시트 후 결제까지 소요 시간</td></tr>
+    <tr><td>first_second_order_date</td><td>1차-2차 주문 간격</td></tr>
+    <tr><td>second_third_order_date</td><td>2차-3차 주문 간격</td></tr>
+    <tr><td>third_fourth_order_date</td><td>3차-4차 주문 간격</td></tr>
+    <tr><td>fourth_fifth_order_date</td><td>4차-5차 주문 간격</td></tr>
+    <tr><td>order_classification</td><td>주문 분류(신규/기존/샘플 등)</td></tr>
+    <tr><td>order_sequence</td><td>주문 순번</td></tr>
+  </table>
+
+  <h3>2-1. 고객 행동/여정/트래킹/통계 DB 모델 상세</h3>
+  <table>
+    <tr><th>파라미터명</th><th>입력 타입/형식</th><th>예시</th><th>설명</th></tr>
+    <tr><td>customer_action_time</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>행동 발생 시각, 기간 검색</td></tr>
+    <tr><td>customer_action_type</td><td>enum | array</td><td>"USER_MESSAGE" 또는 ["USER_MESSAGE", "USER_CLICK"]</td><td>행동 타입</td></tr>
+    <tr><td>customer_journey_stage</td><td>enum | array</td><td>"DESIGN_REQUESTING" 또는 ["DESIGN_REQUESTING", "PAYMENT_COMPLETED"]</td><td>고객 여정 단계</td></tr>
+    <tr><td>progress_status</td><td>enum | array</td><td>"IN_PROGRESS" 또는 ["IN_PROGRESS", "COMPLETED"]</td><td>진행 상태</td></tr>
+    <tr><td>tracking_count</td><td>number | {gte, lte}</td><td>gte: 3, lte: 10</td><td>트래킹 카운트 범위</td></tr>
+    <tr><td>first_design_sent_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>첫 디자인 발송일, 기간 검색</td></tr>
+    <tr><td>1st_revision_count</td><td>number | {gte, lte}</td><td>gte: 1, lte: 3</td><td>1차 수정 횟수</td></tr>
+    <tr><td>2nd_revision_count</td><td>number | {gte, lte}</td><td>gte: 0, lte: 2</td><td>2차 수정 횟수</td></tr>
+    <tr><td>3rd_revision_count</td><td>number | {gte, lte}</td><td>gte: 0, lte: 1</td><td>3차 수정 횟수</td></tr>
+    <tr><td>design_confirm_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>디자인 확정일, 기간 검색</td></tr>
+    <tr><td>time_to_send_first_design</td><td>number | {gte, lte}</td><td>gte: 10, lte: 60</td><td>첫 디자인 발송까지 소요 시간(분)</td></tr>
+    <tr><td>time_to_complete_ordersheet_after_design</td><td>number | {gte, lte}</td><td>gte: 5, lte: 30</td><td>디자인 확정 후 오더시트 작성까지 소요 시간(분)</td></tr>
+    <tr><td>time_to_payment_after_ordersheet</td><td>number | {gte, lte}</td><td>gte: 1, lte: 20</td><td>오더시트 후 결제까지 소요 시간(분)</td></tr>
+    <tr><td>first_second_order_date</td><td>number | {gte, lte}</td><td>gte: 1, lte: 10</td><td>1~2차 주문 간격(일)</td></tr>
+    <tr><td>second_third_order_date</td><td>number | {gte, lte}</td><td>gte: 1, lte: 10</td><td>2~3차 주문 간격(일)</td></tr>
+    <tr><td>third_fourth_order_date</td><td>number | {gte, lte}</td><td>gte: 1, lte: 10</td><td>3~4차 주문 간격(일)</td></tr>
+    <tr><td>fourth_fifth_order_date</td><td>number | {gte, lte}</td><td>gte: 1, lte: 10</td><td>4~5차 주문 간격(일)</td></tr>
+    <tr><td>order_classification</td><td>enum | array</td><td>"NEW_BASEBALL" 또는 ["NEW_BASEBALL", "EXISTING_BASEBALL"]</td><td>주문 분류</td></tr>
+    <tr><td>order_sequence</td><td>number | {gte, lte}</td><td>gte: 1, lte: 5</td><td>주문 순번</td></tr>
+  </table>
+
+  <h2>3. 디자인/오더시트/주문/결제/배송 관련</h2>
+  <table>
+    <tr><th>필드명</th><th>설명</th></tr>
+    <tr><td>ordersheet_sent_date</td><td>오더시트(주문서) 발송 일시</td></tr>
+    <tr><td>ordersheet_complete_date</td><td>오더시트 작성 완료 일시</td></tr>
+    <tr><td>order_number</td><td>주문 번호</td></tr>
+    <tr><td>product_details</td><td>상품 상세 정보</td></tr>
+    <tr><td>total_purchase_count</td><td>총 구매 수량</td></tr>
+    <tr><td>total_payment_amount</td><td>총 결제 금액</td></tr>
+    <tr><td>payer_email</td><td>결제자 이메일</td></tr>
+    <tr><td>payer_phone</td><td>결제자 연락처</td></tr>
+    <tr><td>order_version</td><td>주문 버전</td></tr>
+    <tr><td>first_order_time_uniform</td><td>1차 주문 일시</td></tr>
+    <tr><td>second_order_time_uniform</td><td>2차 주문 일시</td></tr>
+    <tr><td>third_order_time_uniform</td><td>3차 주문 일시</td></tr>
+    <tr><td>fourth_order_time_uniform</td><td>4차 주문 일시</td></tr>
+    <tr><td>fifth_order_time_uniform</td><td>5차 주문 일시</td></tr>
+    <tr><td>payment_method</td><td>결제 방식(카드/이체 등)</td></tr>
+    <tr><td>payment_complete_date</td><td>결제 완료 일시</td></tr>
+    <tr><td>actual_payment_amount</td><td>실 결제 금액</td></tr>
+    <tr><td>payment_percentage</td><td>결제 비율(%)</td></tr>
+    <tr><td>payment_status</td><td>결제 상태(성공/취소/실패/대기중)</td></tr>
+    <tr><td>sample_refund_deadline</td><td>샘플 환불 마감일</td></tr>
+    <tr><td>estimated_order_date</td><td>예상 주문일</td></tr>
+    <tr><td>actual_order_date</td><td>실제 주문일</td></tr>
+  </table>
+
+  <h3>3-1. 디자인/오더시트/주문/결제/배송 DB 모델 상세</h3>
+  <table>
+    <tr><th>파라미터명</th><th>입력 타입/형식</th><th>예시</th><th>설명</th></tr>
+    <tr><td>ordersheet_sent_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>오더시트(주문서) 발송 일시, 기간 검색</td></tr>
+    <tr><td>ordersheet_complete_date</td><td>date | {from, to}</td><td>2024-06-01 ~ 2024-06-30</td><td>오더시트 작성 완료 일시, 기간 검색</td></tr>
+    <tr><td>order_number</td><td>string</td><td>"ORD20240601-01"</td><td>주문 번호</td></tr>
+    <tr><td>product_details</td><td>json | string</td><td>{...} 또는 "상의, 하의 세트"</td><td>상품 상세 정보, 부분검색 가능</td></tr>
+    <tr><td>total_purchase_count</td><td>number | {gte, lte}</td><td>gte: 10, lte: 100</td><td>총 구매 수량, 범위 검색</td></tr>
+    <tr><td>total_payment_amount</td><td>number | {gte, lte}</td><td>gte: 100000, lte: 1000000</td><td>총 결제 금액, 범위 검색</td></tr>
+    <tr><td>payer_email</td><td>string</td><td>"user@email.com"</td><td>결제자 이메일, 부분검색 가능</td></tr>
+    <tr><td>payer_phone</td><td>string</td><td>"010-1234-5678"</td><td>결제자 연락처, 부분검색 가능</td></tr>
+    <tr><td>order_version</td><td>string</td><td>"1st"</td><td>주문 버전</td></tr>
+    <tr><td>first_order_time_uniform</td><td>date | {from, to}</td><td>2024-06-01</td><td>1차 주문 일시, 기간 검색</td></tr>
+    <tr><td>second_order_time_uniform</td><td>date | {from, to}</td><td>2024-06-10</td><td>2차 주문 일시, 기간 검색</td></tr>
+    <tr><td>third_order_time_uniform</td><td>date | {from, to}</td><td>2024-06-20</td><td>3차 주문 일시, 기간 검색</td></tr>
+    <tr><td>fourth_order_time_uniform</td><td>date | {from, to}</td><td>2024-07-01</td><td>4차 주문 일시, 기간 검색</td></tr>
+    <tr><td>fifth_order_time_uniform</td><td>date | {from, to}</td><td>2024-07-10</td><td>5차 주문 일시, 기간 검색</td></tr>
+    <tr><td>payment_method</td><td>enum | array</td><td>"CREDIT_CARD" 또는 ["CREDIT_CARD", "BANK_TRANSFER"]</td><td>결제 방식</td></tr>
+    <tr><td>payment_complete_date</td><td>date | {from, to}</td><td>2024-06-15</td><td>결제 완료 일시, 기간 검색</td></tr>
+    <tr><td>actual_payment_amount</td><td>number | {gte, lte}</td><td>gte: 100000, lte: 1000000</td><td>실 결제 금액, 범위 검색</td></tr>
+    <tr><td>payment_percentage</td><td>number | {gte, lte}</td><td>gte: 50, lte: 100</td><td>결제 비율(%), 범위 검색</td></tr>
+    <tr><td>payment_status</td><td>enum | array</td><td>"COMPLETED" 또는 ["COMPLETED", "FAILED"]</td><td>결제 상태</td></tr>
+    <tr><td>sample_refund_deadline</td><td>date | {from, to}</td><td>2024-07-31</td><td>샘플 환불 마감일, 기간 검색</td></tr>
+    <tr><td>estimated_order_date</td><td>date | {from, to}</td><td>2024-06-05</td><td>예상 주문일, 기간 검색</td></tr>
+    <tr><td>actual_order_date</td><td>date | {from, to}</td><td>2024-06-07</td><td>실제 주문일, 기간 검색</td></tr>
+  </table>
+
+  <h2>4. 비즈니스 로직/트래킹/통계/파생 필드</h2>
+  <div class="logic">
+    <b>수정회수 문의 관련</b><br>
+    - 1st_revision_count, 2nd_revision_count, 3rd_revision_count 등<br>
+    - <b>신규디자인만 카운터 형식 전송</b> (카운팅 규칙 별도 적용)
+  </div>
+  <div class="logic">
+    <b>결제 상태 확인 안내</b><br>
+    - payment_status (성공/취소/실패/대기중)<br>
+    - <b>결제 FLOW</b>와 연동 필요
+  </div>
+  <div class="logic">
+    <b>오더시트(주문서) 제출 후 자동 에이전시 연결</b><br>
+    - ordersheet_complete_date 이후 자동 연결<br>
+    - <b>FLOW</b> 참고 필요
+  </div>
+  <div class="logic">
+    <b>결제 사이트/주문서 자동 발송/세금계산서</b><br>
+    - payment_complete_date, actual_payment_amount 등<br>
+    - <b>결제 마감일</b> 및 <b>자동 안내</b> 포함
+  </div>
+  <div class="logic">
+    <b>단계별 트래킹 안내문</b><br>
+    - customer_journey_stage, progress_status 등<br>
+    - 각 단계별 안내 메시지/상태값 관리
+  </div>
+
+  <h3>4-1. 비즈니스 로직/트래킹/통계/파생 필드 DB 모델 상세</h3>
+  <table>
+    <tr><th>파라미터명</th><th>입력 타입/형식</th><th>예시</th><th>설명</th></tr>
+    <tr><td>revision_total_count</td><td>number | {gte, lte}</td><td>gte: 1, lte: 5</td><td>전체 수정 회수, 범위 검색</td></tr>
+    <tr><td>payment_flow_status</td><td>enum | array</td><td>"SUCCESS", "FAILED"</td><td>결제 FLOW 상태</td></tr>
+    <tr><td>order_auto_agency_linked</td><td>boolean</td><td>true/false</td><td>오더시트 제출 후 자동 에이전시 연결 여부</td></tr>
+    <tr><td>business_hour</td><td>string</td><td>"09:00~18:00"</td><td>영업시간, 문자열 검색</td></tr>
+    <tr><td>card_company</td><td>string | array</td><td>"삼성카드" 또는 ["삼성카드", "국민카드"]</td><td>결제 카드사, 부분검색/다중검색</td></tr>
+    <tr><td>free_paid_revision_info</td><td>string</td><td>"무료 1회, 이후 유료"</td><td>무료/유료 수정 안내, 부분검색</td></tr>
+  </table>
+
+  <h2>5. 가격 안내 하드코딩 정보 (코드 상수)</h2>
+  <table>
+    <tr><th>스포츠</th><th>최소가격</th><th>최대가격</th><th>단위</th><th>최소수량</th><th>비고</th></tr>
+    <tr><td>야구</td><td>50,000</td><td>150,000</td><td>원</td><td>15</td><td>상의, 하의, 모자 세트 기준</td></tr>
+    <tr><td>축구</td><td>40,000</td><td>120,000</td><td>원</td><td>15</td><td>상의, 하의 세트 기준</td></tr>
+    <tr><td>농구</td><td>45,000</td><td>130,000</td><td>원</td><td>12</td><td>상의, 하의 세트 기준</td></tr>
+  </table>
+  <div style="background:#f5f5f5; border-left:4px solid #2196f3; padding:10px; margin:10px 0;">
+    ※ 이 정보는 <b>src/services/intent-processors/price-inquiry.processor.ts</b>에 하드코딩되어 있습니다.<br>
+    DB에 저장되어 있지 않으므로, 가격 변경 시 코드를 직접 수정해야 합니다.
+  </div>
+
+  <h2>6. 주요 항목별 관리 위치 정리</h2>
+  <table>
+    <tr><th>항목</th><th>DB에 존재</th><th>관리 위치/필드</th><th>설명</th></tr>
+    <tr><td>수정회수</td><td>예</td><td>Design.revision1Count, revision2Count, revision3Count</td><td>디자인별 1~3차 수정 카운트</td></tr>
+    <tr><td>결제상태</td><td>예</td><td>Payment.paymentStatus</td><td>성공/취소/실패/대기중 등 ENUM</td></tr>
+    <tr><td>결제방법</td><td>예</td><td>Payment.paymentMethod</td><td>신용카드/이체 등 ENUM</td></tr>
+    <tr><td>전화번호</td><td>예</td><td>Payment.payerPhone</td><td>결제자 연락처</td></tr>
+    <tr><td>이메일</td><td>예</td><td>Payment.payerEmail</td><td>결제자 이메일(스포츠 구분 없이 동일 필드)</td></tr>
+    <tr><td>오더시트 자동연결</td><td>아니오</td><td>비즈니스 로직</td><td>오더시트 제출/완료일은 DB에 있으나 자동연결은 코드 FLOW</td></tr>
+    <tr><td>영업시간</td><td>아니오</td><td>상수/문서/환경변수 등</td><td>DB에 없음, 안내 메시지 등에서 사용</td></tr>
+    <tr><td>카드사별 안내</td><td>아니오</td><td>상수/문서/코드</td><td>DB에 없음, 안내 메시지/링크 등에서 관리</td></tr>
+    <tr><td>무료/유료 수정 안내</td><td>아니오</td><td>상수/문서/코드</td><td>DB에 없음, 안내 메시지 등에서 관리</td></tr>
+  </table>
+  <div style="background:#fffde7; border-left:4px solid #ffd600; padding:10px; margin:10px 0;">
+    <b>설명:</b><br>
+    <ul>
+      <li><b>예</b>: DB에 실제로 해당 정보가 저장됨</li>
+      <li><b>아니오</b>: DB에 없고, 코드/비즈니스 로직/상수/문서 등에서 관리</li>
+    </ul>
+  </div>
+
+  <h2>7. 주요 업무 플로우(비즈니스 로직) 요약</h2>
+  <table>
+    <tr><th>업무 항목</th><th>핵심 플로우 요약</th><th>관련 DB 필드</th><th>구현 위치(코드)</th></tr>
+    <tr>
+      <td>수정회수 카운팅<br>(신규디자인만 카운터 전송)</td>
+      <td>
+        1. 신규 디자인 요청 시 revision 카운트 0으로 초기화<br>
+        2. 고객이 수정 요청할 때마다 +1<br>
+        3. (신규디자인일 때만) 카운터 안내 메시지 전송
+      </td>
+      <td>Design.revision1Count, revision2Count, revision3Count</td>
+      <td>design-request.processor.ts, design.service.ts</td>
+    </tr>
+    <tr>
+      <td>결제 상태 안내<br>(성공/취소/실패/대기중)</td>
+      <td>
+        1. 결제 요청/완료/실패/취소 이벤트 발생<br>
+        2. paymentStatus 필드 값 변경<br>
+        3. 상태별 안내 메시지 전송 및 후속 처리(FLOW)
+      </td>
+      <td>Payment.paymentStatus</td>
+      <td>payment-complete.processor.ts, payment.service.ts</td>
+    </tr>
+    <tr>
+      <td>오더시트 제출 후 자동 에이전시 연결</td>
+      <td>
+        1. 오더시트(주문서) 제출 완료<br>
+        2. ordersheet_complete_date 기록<br>
+        3. 자동으로 담당자(에이전시) 할당 로직 실행(FLOW)
+      </td>
+      <td>OrderTracking.ordersheetCompleteDate, Customer.agentAssigned 등</td>
+      <td>order-tracking.service.ts, customer.service.ts</td>
+    </tr>
+  </table>
+
+  <h3>플로우 순서도(텍스트)</h3>
+  <b>수정회수 카운팅</b><br>
+  <pre>
+  [신규 디자인 요청] → revision1Count = 0
+      ↓
+  [수정 요청] → revision1Count += 1
+      ↓
+  [신규디자인일 때만] → 카운터 안내 메시지 전송
+  </pre>
+  <b>결제 상태 안내</b><br>
+  <pre>
+  [결제 요청/완료/실패/취소 이벤트]
+      ↓
+  paymentStatus 값 변경
+      ↓
+  상태별 안내 메시지/후속 처리
+  </pre>
+  <b>오더시트 제출 후 자동 에이전시 연결</b><br>
+  <pre>
+  [오더시트 제출 완료]
+      ↓
+  ordersheet_complete_date 기록
+      ↓
+  자동 담당자(에이전시) 할당 로직 실행
+  </pre>
+
+</body>
+</html> 

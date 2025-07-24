@@ -1,0 +1,88 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kalron-chatbot
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      # LINE 기본 채널 설정
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
+      - LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
+      # LINE 멀티 채널 설정
+      - LINE_CHANNEL_ID_ILB_MAX=${LINE_CHANNEL_ID_ILB_MAX}
+      - LINE_CHANNEL_SECRET_ILB_MAX=${LINE_CHANNEL_SECRET_ILB_MAX}
+      - LINE_CHANNEL_ACCESS_TOKEN_ILB_MAX=${LINE_CHANNEL_ACCESS_TOKEN_ILB_MAX}
+      - LINE_CHANNEL_ID_MAX2MAX=${LINE_CHANNEL_ID_MAX2MAX}
+      - LINE_CHANNEL_SECRET_MAX2MAX=${LINE_CHANNEL_SECRET_MAX2MAX}
+      - LINE_CHANNEL_ACCESS_TOKEN_MAX2MAX=${LINE_CHANNEL_ACCESS_TOKEN_MAX2MAX}
+      # Slack 기본 설정
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_CHANNEL_ID=${SLACK_CHANNEL_ID}
+      # Slack 멀티 채널 설정
+      - SLACK_CHANNEL_BASEBALL=${SLACK_CHANNEL_BASEBALL}
+      - SLACK_CHANNEL_SOCCER=${SLACK_CHANNEL_SOCCER}
+      - SLACK_CHANNEL_BASKETBALL=${SLACK_CHANNEL_BASKETBALL}
+      - SLACK_CHANNEL_DESIGN=${SLACK_CHANNEL_DESIGN}
+      - SLACK_CHANNEL_CLAIM=${SLACK_CHANNEL_CLAIM}
+      - SLACK_CHANNEL_SAMPLE=${SLACK_CHANNEL_SAMPLE}
+      - SLACK_CHANNEL_PAYMENT=${SLACK_CHANNEL_PAYMENT}
+      - SLACK_CHANNEL_DEFAULT=${SLACK_CHANNEL_DEFAULT}
+      # Dialogflow 설정
+      - DIALOGFLOW_PROJECT_ID=${DIALOGFLOW_PROJECT_ID}
+      - DIALOGFLOW_LANGUAGE_CODE=${DIALOGFLOW_LANGUAGE_CODE}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+      - DIALOGFLOW_CONFIDENCE_THRESHOLD=${DIALOGFLOW_CONFIDENCE_THRESHOLD}
+      - DIALOGFLOW_QUICK_RESPONSE_THRESHOLD=${DIALOGFLOW_QUICK_RESPONSE_THRESHOLD}
+      # Database 설정
+      - DATABASE_URL=${DATABASE_URL}
+      # LLM 설정
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_API_URL=${LLM_API_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE}
+      # WooCommerce 설정 (향후 사용)
+      - WOOCOMMERCE_URL=${WOOCOMMERCE_URL}
+      - WOOCOMMERCE_CONSUMER_KEY=${WOOCOMMERCE_CONSUMER_KEY}
+      - WOOCOMMERCE_CONSUMER_SECRET=${WOOCOMMERCE_CONSUMER_SECRET}
+      - WOOCOMMERCE_VERSION=${WOOCOMMERCE_VERSION}
+      # Redis 설정 (향후 사용)
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_TTL=${REDIS_TTL}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - app-network
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: kalron-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
