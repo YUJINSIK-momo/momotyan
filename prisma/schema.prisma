@@ -1,0 +1,598 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum CustomerType {
+  NEW          // 신규
+  EXISTING     // 기존
+  DESIGN_DROP  // 디자인드랍
+  DRAFT_DROP   // 시안드랍
+  PAYMENT_DROP // 결제드랍
+}
+
+enum SportType {
+  SOCCER       // 축구
+  BASEBALL     // 야구
+  BASKETBALL   // 농구
+}
+
+enum FriendAddStatus {
+  FRIEND  // 친구
+  BLOCKED // 차단
+}
+
+enum ChatStatus {
+  READ_NO_REPLY    // 읽씹
+  ACTIVE_RESPONSE  // 능동적응답
+  NO_RESPONSE      // 무대답
+  CHATTING         // 대화중
+}
+
+enum ActionType {
+  USER_MESSAGE // 사용자 메시지
+  USER_CLICK   // 사용자 클릭
+  FOLLOW       // 팔로우
+  POSTBACK     // 포스트백
+}
+
+enum ConversationStatus {
+  INITIAL
+  ACTIVE  
+  COMPLETED
+}
+
+enum IntentCategory {
+  GENERAL_INQUIRY
+  DESIGN_INQUIRY
+  ORDER_INQUIRY
+  SAMPLE_REQUEST
+  PAYMENT_DELIVERY
+  CLAIM
+}
+
+enum DesignRequestType {
+  NEW_DESIGN      // 신규 디자인
+  MODIFICATION    // 수정 요청
+  TEMPLATE        // 템플릿 기반
+}
+
+enum DesignStatus {
+  REQUESTED
+  IN_PROGRESS
+  REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum OrderType {
+  NEW_ORDER
+  ADDITIONAL_ORDER
+}
+
+enum OrderStatus {
+  INQUIRY
+  QUOTE_SENT
+  PAYMENT_PENDING
+  PAYMENT_COMPLETE
+  IN_PRODUCTION
+  PRODUCTION_COMPLETE // 제작완료 추가
+  SHIPPED
+  DELIVERED
+}
+
+enum SampleStatus {
+  REQUESTED
+  PREPARING
+  SHIPPED
+  DELIVERED
+}
+
+enum Brand {
+  ILB_MAX    // 야구
+  MAX2MAX    // 축구, 농구
+}
+
+enum PaymentMethod {
+  CREDIT_CARD  // 신용카드
+  BANK_TRANSFER // 이체
+}
+
+enum PaymentStatus {
+  PENDING     // 대기중
+  PROCESSING  // 처리중
+  COMPLETED   // 완료
+  CANCELLED   // 취소
+  FAILED      // 실패
+}
+
+enum CustomerJourneyStage {
+  FRIEND_ADDED        // 친구추가
+  FIRST_MESSAGE       // 첫메시지
+  DESIGN_REQUESTING   // 시안요청중
+  DESIGN_MODIFYING    // 시안수정중
+  DESIGN_CONFIRMED    // 디자인확정
+  ORDERSHEET_REQUESTED // 오더시트요청
+  ORDERSHEET_COMPLETED // 오더시트작성완료
+  QUOTE_SENT          // 견적서전달
+  PAYMENT_COMPLETED   // 결제완료
+  PAYMENT_PENDING     // 결제대기중
+  PAYMENT_FAILED      // 결제실패
+  REPURCHASE          // 재구매
+  SAMPLE_REQUESTED    // 샘플대여요청
+  SAMPLE_SENT         // 샘플발송완료
+  RICH_MENU_CLICKED   // 리치메뉴클릭
+}
+
+enum ProgressStatus {
+  IN_PROGRESS  // 진행중
+  COMPLETED    // 완성
+  DROPPED      // 드랍
+}
+
+enum OrderClassification {
+  NEW_BASEBALL      // 야球신규
+  EXISTING_BASEBALL // 야구기존
+  NEW_SOCCER        // 축구신규
+  EXISTING_SOCCER   // 축구기존
+  SAMPLE_DESIGN     // 샘플&디자인
+}
+
+// Models
+model Customer {
+  id                String             @id @default(cuid())
+  lineUserId        String             @unique @map("line_user_id")
+  lineUserName      String?            @map("line_user_name")
+  teamName          String?            @map("team_name")  // 실제로는 CustomerTeam으로 별도 관리
+  sportType         SportType?         @map("sport_type")
+  friendAddDate     DateTime?          @map("friend_add_date")
+  firstChatDate     DateTime?          @map("first_chat_date")
+  customerType      CustomerType       @map("customer_type")
+  lastMessageDate   DateTime?          @map("last_message_date")
+  friendAddStatus   FriendAddStatus    @map("friend_add_status")
+  chatStatus        ChatStatus         @map("chat_status")
+  blockDate         DateTime?          @map("block_date")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  deletedAt         DateTime?          @map("deleted_at")
+
+  // Additional fields
+  brand           Brand?             @map("brand")
+  agentAssigned   String?            @map("agent_assigned")
+  notes           String?            @db.Text @map("notes")
+  
+  // Relations
+  customerActions  CustomerAction[]
+  slackIntegration SlackIntegration?
+  conversations    Conversation[]
+  designRequests   DesignRequest[]
+  orderTrackings   OrderTracking[]
+  sampleRequests   SampleRequest[]
+  slackMessages    SlackMessage[]
+  customerJourneys CustomerJourney[]
+  customerTeams    CustomerTeam[]
+  payments         Payment[]
+  deliveries       Delivery[]
+  designs          Design[]
+
+  @@index([lineUserId])
+  @@index([customerType])
+  @@index([chatStatus])
+  @@index([teamName])
+  @@index([sportType])
+  @@map("customers")
+}
+
+
+model CustomerAction {
+  id         String     @id @default(cuid())
+  customerId String     @map("customer_id")
+  actionTime DateTime   @map("action_time")
+  actionType ActionType @map("action_type")
+  details    Json?      @db.Json
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([actionTime])
+  @@index([actionType])
+  @@map("customer_actions")
+}
+
+
+
+
+
+
+
+// Webhook event logging
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  source      String   // 'line' or 'slack'
+  eventType   String   @map("event_type")
+  eventData   Json     @map("event_data") @db.Json
+  processedAt DateTime @default(now()) @map("processed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([source])
+  @@index([eventType])
+  @@index([processedAt])
+  @@map("webhook_events")
+}
+
+// Slack integration information
+model SlackIntegration {
+  id              String    @id @default(cuid())
+  customerId      String    @unique @map("customer_id")
+  slackUserId     String?   @map("slack_user_id")
+  slackTeamId     String?   @map("slack_team_id")
+  slackChannelId  String?   @map("slack_channel_id")
+  primaryChannel  String?   @map("primary_channel") // #아구, #축구, #농구 등
+  threadTs        String?   @map("thread_ts") // 현재 활성 스레드
+  isActive        Boolean   @default(false) @map("is_active")
+  connectedAt     DateTime? @map("connected_at")
+  disconnectedAt  DateTime? @map("disconnected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([slackUserId])
+  @@index([slackTeamId])
+  @@map("slack_integrations")
+}
+
+// Team information
+model Team {
+  id                String      @id @default(cuid())
+  normalizedName    String      @unique @map("normalized_name")
+  sportType         SportType?  @map("sport_type")
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  deletedAt         DateTime?   @map("deleted_at")
+
+  // Relations
+  teamAliases       TeamAlias[]
+
+  @@index([normalizedName])
+  @@index([sportType])
+  @@map("teams")
+}
+
+// Team name variations/aliases
+model TeamAlias {
+  id          String   @id @default(cuid())
+  teamId      String   @map("team_id")
+  alias       String   @map("alias")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  team        Team     @relation(fields: [teamId], references: [id])
+
+  @@unique([teamId, alias])
+  @@index([alias])
+  @@index([teamId])
+  @@map("team_aliases")
+}
+
+// Conversation history
+model Conversation {
+  id            String              @id @default(cuid())
+  customerId    String              @map("customer_id")
+  sessionId     String              @map("session_id")
+  messages      Json                @db.Json // 대화 내역
+  status        ConversationStatus  @map("status")
+  startedAt     DateTime            @default(now()) @map("started_at")
+  endedAt       DateTime?           @map("ended_at")
+  lastActiveAt  DateTime            @updatedAt @map("last_active_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  
+  // Relations
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([sessionId])
+  @@index([status])
+  @@map("conversations")
+}
+
+// Intent management
+model Intent {
+  id                String          @id @default(cuid())
+  name              String          @unique
+  category          IntentCategory  @map("category")
+  automationRate    Int             @map("automation_rate") // 자동화 비율 (0-100)
+  responseTemplate  String?         @db.Text @map("response_template")
+  isActive          Boolean         @default(true) @map("is_active")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  
+  @@index([category])
+  @@map("intents")
+}
+
+// FAQ templates
+model FAQTemplate {
+  id          String         @id @default(cuid())
+  intent      String         @map("intent")
+  question    String         @db.Text @map("question")
+  answer      String         @db.Text @map("answer")
+  category    IntentCategory @map("category")
+  isActive    Boolean        @default(true) @map("is_active")
+  usageCount  Int            @default(0) @map("usage_count")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  
+  @@index([intent])
+  @@index([category])
+  @@map("faq_templates")
+}
+
+// Design request management
+model DesignRequest {
+  id            String            @id @default(cuid())
+  customerId    String            @map("customer_id")
+  requestType   DesignRequestType @map("request_type")
+  description   String            @db.Text @map("description")
+  status        DesignStatus      @map("status")
+  slackThreadTs String?           @map("slack_thread_ts") // Slack 스레드 연결
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  
+  // Relations
+  customer      Customer @relation(fields: [customerId], references: [id])
+  designFiles   DesignFile[]
+  designs       Design[]
+  
+  @@index([customerId])
+  @@index([status])
+  @@map("design_requests")
+}
+
+model DesignFile {
+  id              String   @id @default(cuid())
+  designRequestId String   @map("design_request_id")
+  fileUrl         String   @map("file_url")
+  fileName        String   @map("file_name")
+  uploadedBy      String   @map("uploaded_by") // 'customer' or 'designer'
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  designRequest   DesignRequest @relation(fields: [designRequestId], references: [id])
+  
+  @@index([designRequestId])
+  @@map("design_files")
+}
+
+// Order tracking
+model OrderTracking {
+  id              String      @id @default(cuid())
+  customerId      String      @map("customer_id")
+  orderType       OrderType   @map("order_type")
+  teamName        String      @map("team_name")
+  status          OrderStatus @map("status")
+  orderSheetUrl   String?     @map("order_sheet_url")
+  quoteUrl        String?     @map("quote_url")
+  paymentUrl      String?     @map("payment_url")
+  trackingNumber  String?     @map("tracking_number")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  customer        Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([status])
+  @@map("order_trackings")
+}
+
+// Sample requests
+model SampleRequest {
+  id          String       @id @default(cuid())
+  customerId  String       @map("customer_id")
+  sampleType  String       @map("sample_type") // 사이즈, 원단 등
+  status      SampleStatus @map("status")
+  address     String?      @map("address")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([status])
+  @@map("sample_requests")
+}
+
+// Slack message tracking
+model SlackMessage {
+  id            String   @id @default(cuid())
+  customerId    String   @map("customer_id")
+  messageTs     String   @map("message_ts")
+  channelId     String   @map("channel_id")
+  messageType   String   @map("message_type") // approval_request, design_update 등
+  status        String   // pending, approved, rejected
+  approvedBy    String?  @map("approved_by")
+  approvedAt    DateTime? @map("approved_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([messageTs])
+  @@map("slack_messages")
+}
+
+// Conversation metrics for analytics
+model ConversationMetrics {
+  id                 String         @id @default(cuid())
+  date               DateTime       @db.Date
+  totalConversations Int            @map("total_conversations")
+  automatedResponses Int            @map("automated_responses")
+  handoffCount       Int            @map("handoff_count")
+  avgResponseTime    Float          @map("avg_response_time")
+  category           IntentCategory @map("category")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  
+  @@unique([date, category])
+  @@index([date])
+  @@map("conversation_metrics")
+}
+
+// Customer Teams (한 고객이 여러 팀을 가질 수 있음)
+model CustomerTeam {
+  id          String   @id @default(cuid())
+  customerId  String   @map("customer_id")
+  teamName    String   @map("team_name")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  @@unique([customerId, teamName])
+  @@index([customerId])
+  @@index([teamName])
+  @@map("customer_teams")
+}
+
+// Customer Journey
+model CustomerJourney {
+  id                  String                @id @default(cuid())
+  customerId          String                @map("customer_id")
+  progressStatus      ProgressStatus        @map("progress_status")
+  journeyStage        CustomerJourneyStage  @map("customer_journey_stage")
+  trackingCount       Int                   @default(0) @map("tracking_count")
+  
+  // Time tracking fields
+  timeToFirstDesign   Int?                  @map("time_to_send_first_design") // minutes
+  timeToOrdersheet    Int?                  @map("time_to_complete_ordersheet_after_design") // minutes
+  timeToPayment       Int?                  @map("time_to_payment_after_ordersheet") // minutes
+  
+  // Key dates
+  firstDesignSentDate DateTime?             @map("first_design_sent_date")
+  designConfirmDate   DateTime?             @map("design_confirm_date")
+  ordersheetSentDate  DateTime?             @map("ordersheet_sent_date")
+  ordersheetCompleteDate DateTime?          @map("ordersheet_complete_date")
+  
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+  
+  // Relations
+  customer            Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([journeyStage])
+  @@index([progressStatus])
+  @@map("customer_journeys")
+}
+
+// Design details
+model Design {
+  id                  String     @id @default(cuid())
+  customerId          String     @map("customer_id")
+  designRequestId     String?    @map("design_request_id")
+  
+  // Revision counts
+  revision1Count      Int        @default(0) @map("1st_revision_count")
+  revision2Count      Int        @default(0) @map("2nd_revision_count")
+  revision3Count      Int        @default(0) @map("3rd_revision_count")
+  
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  
+  // Relations
+  customer            Customer @relation(fields: [customerId], references: [id])
+  designRequest       DesignRequest? @relation(fields: [designRequestId], references: [id])
+  
+  @@index([customerId])
+  @@map("designs")
+}
+
+// Payment information
+model Payment {
+  id                  String            @id @default(cuid())
+  customerId          String            @map("customer_id")
+  orderNumber         String            @unique @map("order_number")
+  productDetails      Json              @map("product_details") @db.Json
+  totalPurchaseCount  Int               @map("total_purchase_count")
+  totalPaymentAmount  Float             @map("total_payment_amount")
+  actualPaymentAmount Float             @map("actual_payment_amount")
+  payerEmail          String?           @map("payer_email")
+  payerPhone          String?           @map("payer_phone")
+  orderVersion        String?           @map("order_version") // 1st, 2nd 등
+  orderSequence       Int               @map("order_sequence") // 몇 번째 주문
+  paymentMethod       PaymentMethod?    @map("payment_method")
+  paymentPercentage   Int               @map("payment_percentage") // 50 or 100
+  paymentStatus       PaymentStatus     @map("payment_status")
+  paymentCompleteDate DateTime?         @map("payment_complete_date")
+  orderClassification OrderClassification @map("order_classification")
+  
+  // Order timing fields (1st ~ 5th)
+  firstOrderTime      DateTime?         @map("first_order_time_uniform")
+  secondOrderTime     DateTime?         @map("second_order_time_uniform")
+  thirdOrderTime      DateTime?         @map("third_order_time_uniform")
+  fourthOrderTime     DateTime?         @map("fourth_order_time_uniform")
+  fifthOrderTime      DateTime?         @map("fifth_order_time_uniform")
+  
+  // Order intervals
+  firstSecondInterval Int?              @map("first_second_order_date") // days
+  secondThirdInterval Int?              @map("second_third_order_date") // days
+  thirdFourthInterval Int?              @map("third_fourth_order_date") // days
+  fourthFifthInterval Int?              @map("fourth_fifth_order_date") // days
+  
+  sampleRefundDeadline DateTime?        @map("sample_refund_deadline")
+  
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  
+  // Relations
+  customer            Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([orderNumber])
+  @@index([paymentStatus])
+  @@map("payments")
+}
+
+// Delivery information
+model Delivery {
+  id                  String    @id @default(cuid())
+  customerId          String    @map("customer_id")
+  orderNumber         String    @map("order_number")
+  isExpress           Boolean   @default(false) @map("is_express")
+  estimatedDeliveryDate DateTime? @map("estimated_order_date")
+  actualDeliveryDate  DateTime? @map("actual_order_date")
+  trackingNumber      String?   @map("tracking_number")
+  
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  customer            Customer @relation(fields: [customerId], references: [id])
+  
+  @@index([customerId])
+  @@index([orderNumber])
+  @@map("deliveries")
+}
