@@ -65,78 +65,72 @@ export class LLMService {
     options: LLMGenerationOptions = {}
   ): Promise<LLMResponse> {
     try {
-      const messages = [
-        { role: 'system', content: this.defaultSystemPrompt },
-        { role: 'user', content: prompt }
-      ];
-
-      const payload = {
-        model: this.model,
-        messages,
-        temperature: options.temperature ?? config.llm.temperature,
-        max_tokens: options.maxTokens ?? config.llm.maxTokens,
-        top_p: options.topP ?? 1,
-        frequency_penalty: options.frequencyPenalty ?? 0,
-        presence_penalty: options.presencePenalty ?? 0,
-        stream: false
-      };
-
-      logger.info('Sending request to LLM API', {
-        model: this.model,
-        promptLength: prompt.length
-      });
-
-      const response = await axios.post<{
-        choices?: Array<{
-          message?: {
-            content?: string;
-          };
-        }>;
-        usage?: {
-          prompt_tokens?: number;
-          completion_tokens?: number;
-          total_tokens?: number;
+      // Gemini API와 OpenAI API 분기 처리
+      const isGemini = this.apiUrl.includes('generativelanguage.googleapis.com');
+      let response;
+      if (isGemini) {
+        // Gemini API 요청 구조
+        const url = `${this.apiUrl}?key=${this.apiKey}`;
+        const payload = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt }
+              ]
+            }
+          ]
         };
-      }>(
-        this.apiUrl,
-        payload,
-        {
+        response = await axios.post(url, payload, {
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
           timeout: 30000
-        }
-      );
-
-      const content = response.data.choices?.[0]?.message?.content;
-      const usage = response.data.usage;
-
-      if (!content) {
-        throw new Error('No content received from LLM');
+        });
+        const candidates = (response.data as any).candidates || [];
+        const content = candidates[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
+        return {
+          success: true,
+          content
+        };
+      } else {
+        // OpenAI API 요청 구조 (기존 방식)
+        const messages = [
+          { role: 'system', content: this.defaultSystemPrompt },
+          { role: 'user', content: prompt }
+        ];
+        const payload = {
+          model: this.model,
+          messages,
+          temperature: options.temperature ?? config.llm.temperature,
+          max_tokens: options.maxTokens ?? config.llm.maxTokens,
+          top_p: options.topP ?? 1,
+          frequency_penalty: options.frequencyPenalty ?? 0,
+          presence_penalty: options.presencePenalty ?? 0,
+          stream: false
+        };
+        response = await axios.post(
+          this.apiUrl,
+          payload,
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          }
+        );
+        const content = (response.data as any).choices?.[0]?.message?.content || '';
+        return {
+          success: true,
+          content
+        };
       }
-
-      logger.info('LLM response generated successfully', {
-        contentLength: content.length,
-        usage
-      });
-
-      return {
-        success: true,
-        content: content.trim(),
-        answer: content.trim(), // 호환성
-        usage: usage ? {
-          promptTokens: usage.prompt_tokens || 0,
-          completionTokens: usage.completion_tokens || 0,
-          totalTokens: usage.total_tokens || 0
-        } : undefined
-      };
-    } catch (error) {
-      logger.error('Error generating LLM response', { error, prompt });
-
+    } catch (error: any) {
+      logger.error('Error generating LLM response', { error });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: error.message || 'Unknown error'
       };
     }
   }
